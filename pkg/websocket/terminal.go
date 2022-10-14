@@ -3,15 +3,16 @@ package websocket
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rtsien/k8shell/pkg/k8s"
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"k8s.io/client-go/tools/remotecommand"
 
-	"github.com/gorilla/websocket"
+	"github.com/rtsien/k8shell/pkg/k8s"
 )
 
 var upgrader = func() websocket.Upgrader {
@@ -29,6 +30,8 @@ type TerminalSession struct {
 	sizeChan chan remotecommand.TerminalSize
 	doneChan chan struct{}
 	tty      bool
+	done     bool
+	mu       sync.Mutex
 }
 
 // NewTerminalSession create TerminalSession
@@ -48,7 +51,12 @@ func NewTerminalSession(w http.ResponseWriter, r *http.Request, responseHeader h
 
 // Done must call Done() before connection close, or Next() would not exits.
 func (t *TerminalSession) Done() {
-	close(t.doneChan)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.done {
+		close(t.doneChan)
+		t.done = true
+	}
 }
 
 // Next called in a loop from remotecommand as long as the process is running
