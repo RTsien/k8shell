@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	addr                = flag.String("addr", ":8090", "http service address")
+	addr                = flag.String("addr", ":8080", "http service address")
 	defaultCmd          = []string{"/bin/bash"}
 	defaultTail   int64 = 200
 	defaultFollow       = true

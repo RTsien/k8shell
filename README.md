@@ -34,12 +34,12 @@ For example:
 
 *assume that a kubeconfig file named `abc` already exists in dist/kubeconfig*
 
-`http://127.0.0.1:8090/terminal?cluster=abc&namespace=default&pod=nginx-0&container=nginx`
+`http://127.0.0.1:8080/terminal?cluster=abc&namespace=default&pod=nginx-0&container=nginx`
 
-`http://127.0.0.1:8090/terminal?cluster=abc&namespace=default&pod=nginx-0&container=nginx&cmd=/bin/bash`
+`http://127.0.0.1:8080/terminal?cluster=abc&namespace=default&pod=nginx-0&container=nginx&cmd=/bin/bash`
 
 ### logs
-`https://{host_ip}:8090/terminal?cluster={kubeconfig-file-name}&namespace={namespace}&pod={pod-name}&container={container-name}&tail={tailLines}&follow={true or false}`
+`https://{host_ip}:8080/terminal?cluster={kubeconfig-file-name}&namespace={namespace}&pod={pod-name}&container={container-name}&tail={tailLines}&follow={true or false}`
 
 `tail={tailLines} and follow={true or false}` are optional
 
@@ -47,9 +47,9 @@ For example:
 
 *assume that a kubeconfig file named `abc` already exists in dist/kubeconfig*
 
-`http://127.0.0.1:8090/logs?cluster=abc&namespace=default&pod=nginx-0&container=nginx`
+`http://127.0.0.1:8080/logs?cluster=abc&namespace=default&pod=nginx-0&container=nginx`
 
-`http://127.0.0.1:8090/logs?cluster=abc&namespace=default&pod=nginx-0&container=nginx&tail=200&follow=true`
+`http://127.0.0.1:8080/logs?cluster=abc&namespace=default&pod=nginx-0&container=nginx&tail=200&follow=true`
 
 Refs:
 1. http://maoqide.live/post/cloud/kubernetes-webshell/
