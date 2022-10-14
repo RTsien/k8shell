@@ -26,7 +26,7 @@ cd k8shell/dist
 ```
 
 ### webshell
-`https://{host_ip}:8090/terminal?cluster={kubeconfig-file-name}&namespace={namespace}&pod={pod-name}&container={container-name}cmd={cmd}`
+`https://{host_ip}:8080/terminal?cluster={kubeconfig-file-name}&namespace={namespace}&pod={pod-name}&container={container-name}cmd={cmd}`
 
 `cmd={cmd}` is optional
 
