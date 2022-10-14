@@ -7,20 +7,27 @@ function getQueryVariable(variable) {
 				return pair[1];
 			}
 	}
-	return(false);
+	return false;
 }
 
 function connect(){
-	namespace=getQueryVariable("namespace")
-	pod=getQueryVariable("pod")
-	container=getQueryVariable("container")
-	console.log(namespace ,pod ,container)
-	if (namespace == false || pod == false || container == false) {
+	let cluster = getQueryVariable("cluster")
+	let namespace = getQueryVariable("namespace")
+	let pod = getQueryVariable("pod")
+	let container = getQueryVariable("container")
+	let cmd = getQueryVariable("cmd")
+	if (namespace == false) {
+		namespace="default"
+	}
+	console.log(cluster, namespace ,pod ,container, cmd)
+	if (cluster == false || pod == false || container == false) {
 		alert("无法获取到容器，请联系管理员")
 		return
 	}
-	console.log(namespace ,pod ,container)
-	url = "ws://"+document.location.host+"/ws/"+namespace+"/"+pod+"/"+container+"/webshell"
+	let url = "ws://" + document.location.host + "/ws/" + cluster + "/" + namespace + "/" + pod + "/" + container + "/webshell?"
+	if (cmd) {
+		url += "cmd=" + cmd
+	}
 	console.log(url);
 	let term = new Terminal({
 		"cursorBlink":true,

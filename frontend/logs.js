@@ -5,29 +5,30 @@ function getQueryVariable(variable) {
 			let pair = vars[i].split("=");
 			if(pair[0] == variable){return pair[1];}
 	}
-	return(false);
+	return false;
 }
 
 function connect(){
-	namespace=getQueryVariable("namespace")
-	pod=getQueryVariable("pod")
-	container_name=getQueryVariable("container")
-	tail=getQueryVariable("tail")
-	follow=getQueryVariable("follow")
+	let cluster = getQueryVariable("cluster")
+	let namespace = getQueryVariable("namespace")
+	let pod = getQueryVariable("pod")
+	let container = getQueryVariable("container")
+	let tail = getQueryVariable("tail")
+	let follow = getQueryVariable("follow")
 	if (namespace == false) {
 		namespace="default"
 	}
-	// container_name="nginx-2"
-	if (namespace == false || pod == false) {
-		alert("cannot get pod")
+	console.log(cluster, namespace ,pod ,container, tail, follow)
+	if (cluster == false || pod == false || container == false) {
+		alert("无法获取到容器，请联系管理员")
 		return
 	}
-	url = "ws://"+document.location.host+"/ws/"+namespace+"/"+pod+"/"+container_name+"/logs?"
-	if (tail != false) {
-		url = url+"&tail="+tail
+	let url = "ws://" + document.location.host + "/ws/" + cluster + "/" + namespace + "/" + pod + "/" + container + "/logs?"
+	if (tail) {
+		url += "&tail="+tail
 	}
-	if (follow != false) {
-		url = url+"&follow="+follow
+	if (follow) {
+		url += "&follow="+follow
 	}
 
 	console.log(url);

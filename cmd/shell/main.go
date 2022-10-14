@@ -4,10 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
 
+	"github.com/go-co-op/gocron"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	corev1 "k8s.io/api/core/v1"
@@ -18,9 +23,16 @@ import (
 )
 
 var (
-	addr       = flag.String("addr", ":8090", "http service address")
-	cmd        = []string{"/bin/sh"}
-	kubeconfig = ""
+	addr                = flag.String("addr", ":8090", "http service address")
+	defaultCmd          = []string{"/bin/bash"}
+	defaultTail   int64 = 200
+	defaultFollow       = true
+)
+
+var (
+	kubeconfig map[string]*k8s.Client
+	once       sync.Once
+	rwm        sync.RWMutex
 )
 
 func internalError(ws *websocket.Conn, msg string, err error) {
@@ -48,10 +60,16 @@ func serveLogs(w http.ResponseWriter, r *http.Request) {
 
 func serveWsTerminal(w http.ResponseWriter, r *http.Request) {
 	pathParams := mux.Vars(r)
+	cluster := pathParams["cluster"]
 	namespace := pathParams["namespace"]
 	podName := pathParams["pod"]
 	containerName := pathParams["container"]
-	log.Printf("exec pod: %s, container: %s, namespace: %s\n", podName, containerName, namespace)
+	cmd := r.URL.Query()["cmd"]
+	if len(cmd) == 0 {
+		cmd = defaultCmd
+	}
+	log.Printf("exec cluster:%s, namespace: %s, pod: %s, container: %s, cmd: %v\n",
+		cluster, namespace, podName, containerName, cmd)
 
 	pty, err := ws.NewTerminalSession(w, r, nil)
 	if err != nil {
@@ -63,9 +81,9 @@ func serveWsTerminal(w http.ResponseWriter, r *http.Request) {
 		pty.Close()
 	}()
 
-	client, err := k8s.NewClient(kubeconfig)
-	if err != nil {
-		log.Printf("get kubernetes client failed: %v\n", err)
+	client := getClient(cluster)
+	if client == nil {
+		log.Println("get kubernetes client failed")
 		return
 	}
 	pod, err := client.GetPod(context.Background(), podName, namespace)
@@ -93,13 +111,20 @@ func serveWsTerminal(w http.ResponseWriter, r *http.Request) {
 
 func serveWsLogs(w http.ResponseWriter, r *http.Request) {
 	pathParams := mux.Vars(r)
+	cluster := pathParams["cluster"]
 	namespace := pathParams["namespace"]
 	podName := pathParams["pod"]
 	containerName := pathParams["container"]
-	tailLine, _ := utils.StringToInt64(r.URL.Query().Get("tail"))
-	follow, _ := utils.StringToBool(r.URL.Query().Get("follow"))
-	log.Printf("log pod: %s, container: %s, namespace: %s, tailLine: %d, follow: %v\n", podName, containerName, namespace, tailLine, follow)
-
+	tailLine := defaultTail
+	if r.URL.Query().Has("tail") {
+		tailLine, _ = utils.StringToInt64(r.URL.Query().Get("tail"))
+	}
+	follow := defaultFollow
+	if r.URL.Query().Has("follow") {
+		follow, _ = utils.StringToBool(r.URL.Query().Get("follow"))
+	}
+	log.Printf("exec cluster:%s, namespace: %s, pod: %s, container: %s\n",
+		cluster, namespace, podName, containerName)
 	writer, err := k8s.NewWsLogger(w, r, nil)
 	if err != nil {
 		log.Printf("get writer failed: %v\n", err)
@@ -110,12 +135,11 @@ func serveWsLogs(w http.ResponseWriter, r *http.Request) {
 		writer.Close()
 	}()
 
-	//client, err := kube.GetClient()
-	//if err != nil {
-	//	log.Printf("get kubernetes client failed: %v\n", err)
-	//	return
-	//}
-	client, err := k8s.NewClient(kubeconfig)
+	client := getClient(cluster)
+	if client == nil {
+		log.Println("get kubernetes client failed")
+		return
+	}
 	pod, err := client.GetPod(context.Background(), podName, namespace)
 	if err != nil {
 		log.Printf("get kubernetes client failed: %v\n", err)
@@ -146,16 +170,52 @@ func serveWsLogs(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func getClient(cluster string) *k8s.Client {
+	rwm.RLock()
+	defer rwm.RUnlock()
+	return kubeconfig[cluster]
+}
+
+func updateKubeconfig() {
+	once.Do(func() {
+		kubeconfig = make(map[string]*k8s.Client)
+	})
+	filepath.WalkDir("./kubeconfig/", func(path string, d fs.DirEntry, err error) error {
+		if d.IsDir() {
+			return nil
+		}
+		if k, err := os.ReadFile(path); err != nil {
+			return err
+		} else {
+			rwm.Lock()
+			defer rwm.Unlock()
+			cli, err := k8s.NewClient(string(k))
+			if err != nil {
+				return err
+			}
+
+			kubeconfig[d.Name()] = cli
+		}
+
+		log.Println("kubeconfig:", d.Name())
+		return nil
+	})
+}
+
 func main() {
+	s := gocron.NewScheduler(time.Local).StartImmediately()
+	s.Every(1).Minute().Do(updateKubeconfig)
+	s.StartAsync()
+
 	router := mux.NewRouter()
-	router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
-	// TODO
-	// temporarily use relative path, run by `go run cmd/webshell/webshell_main.go` in project root path.
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./frontend/"))))
-	// enter webshell by url like: http://127.0.0.1:8090/terminal?namespace=default&pod=nginx-65f9798fbf-jdrgl&container=nginx
+	// http://127.0.0.1:8090/terminal?cluster=abc&namespace=default&pod=nginx-0&container=nginx
+	// http://127.0.0.1:8090/terminal?cluster=abc&namespace=default&pod=nginx-0&container=nginx&cmd=/bin/bash
 	router.HandleFunc("/terminal", serveTerminal)
-	router.HandleFunc("/ws/{namespace}/{pod}/{container}/webshell", serveWsTerminal)
+	router.HandleFunc("/ws/{cluster}/{namespace}/{pod}/{container}/webshell", serveWsTerminal)
+	// http://127.0.0.1:8090/logs?cluster=abc&namespace=default&pod=nginx-0&container=nginx
+	// http://127.0.0.1:8090/logs?cluster=abc&namespace=default&pod=nginx-0&container=nginx&tail=200&follow=true
 	router.HandleFunc("/logs", serveLogs)
-	router.HandleFunc("/ws/{namespace}/{pod}/{container}/logs", serveWsLogs)
+	router.HandleFunc("/ws/{cluster}/{namespace}/{pod}/{container}/logs", serveWsLogs)
 	log.Fatal(http.ListenAndServe(*addr, router))
 }
