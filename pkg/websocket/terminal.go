@@ -34,7 +34,7 @@ type TerminalSession struct {
 	mu       sync.Mutex
 }
 
-// NewTerminalSession create TerminalSession
+// NewTerminalSession creates TerminalSession
 func NewTerminalSession(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (*TerminalSession, error) {
 	conn, err := upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {

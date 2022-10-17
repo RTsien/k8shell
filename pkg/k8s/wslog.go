@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Logger is interface for output pod log
+// Logger is an interface for output pod log
 type Logger interface {
 	io.WriteCloser
 }
@@ -25,7 +25,7 @@ type WsLogger struct {
 	wsConn *websocket.Conn
 }
 
-// NewWsLogger create WsLogger
+// NewWsLogger creates WsLogger
 func NewWsLogger(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (*WsLogger, error) {
 	conn, err := upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
@@ -37,7 +37,7 @@ func NewWsLogger(w http.ResponseWriter, r *http.Request, responseHeader http.Hea
 	return session, nil
 }
 
-// Write wirte bytes
+// Write bytes
 func (l *WsLogger) Write(p []byte) (n int, err error) {
 	if err := l.wsConn.WriteMessage(websocket.TextMessage, p); err != nil {
 		return 0, err

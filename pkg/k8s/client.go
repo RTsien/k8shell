@@ -5,27 +5,28 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/rtsien/k8shell/pkg/utils"
 	"io"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
+
+	"github.com/rtsien/k8shell/pkg/utils"
 )
 
-// Client wrapper k8s client and namespace
+// Client wraps k8s client and namespace
 type Client struct {
 	kubernetes.Interface
 	config *rest.Config
 }
 
-// NewClient create a new client
+// NewClient creates a new client
 func NewClient(kubeconfig string) (*Client, error) {
 	k8sConfig, err := clientcmd.NewClientConfigFromBytes([]byte(kubeconfig))
 	if err != nil {
@@ -33,7 +34,7 @@ func NewClient(kubeconfig string) (*Client, error) {
 	}
 	config, err := k8sConfig.ClientConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "create kubeconfig[%s], err[%s].\n", kubeconfig, err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "create kubeconfig[%s], err[%s].\n", kubeconfig, err.Error())
 		return nil, err
 	}
 	cli, err := kubernetes.NewForConfig(config)
@@ -44,7 +45,7 @@ func NewClient(kubeconfig string) (*Client, error) {
 	return &Client{Interface: cli, config: config}, err
 }
 
-// CopyFileToPod copy client file to pod
+// CopyFileToPod copies client file to pod
 func (c *Client) CopyFileToPod(pod, container, namespace string, file io.Reader, dstPath string) error {
 	dstDir := path.Dir(dstPath)
 	execCmd := fmt.Sprintf("mkdir -p %s && cd %s && tar x", dstDir, dstDir)
@@ -85,7 +86,7 @@ func (c *Client) CopyFileToPod(pod, container, namespace string, file io.Reader,
 	fmt.Printf("copy file to pod[%s] container[%s], stdout[%s] stderr[%s]\n",
 		pod, container, stdout.String(), stderr.String())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "copy file to pod[%s] container[%s] failed, err[%s].\n", pod, container, err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "copy file to pod[%s] container[%s] failed, err[%s].\n", pod, container, err.Error())
 		return err
 	}
 	return nil
@@ -97,12 +98,8 @@ func (c *Client) GetPod(ctx context.Context, name, namespace string) (*corev1.Po
 	return c.CoreV1().Pods(namespace).Get(ctx, name, opt)
 }
 
-// Exec exec into a pod
+// Exec into a pod
 func (c *Client) Exec(cmd []string, ptyHandler PtyHandler, namespace, podName, containerName string) error {
-	defer func() {
-		ptyHandler.Done()
-	}()
-
 	req := c.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
@@ -132,19 +129,21 @@ func (c *Client) Exec(cmd []string, ptyHandler PtyHandler, namespace, podName, c
 	return err
 }
 
-// Logs get logs of specified pod in specified namespace.
+// Logs gets logs of specified pod in specified namespace.
 func (c *Client) Logs(name, namespace string, opts *corev1.PodLogOptions) *rest.Request {
 	return c.CoreV1().Pods(namespace).GetLogs(name, opts)
 }
 
-// LogStreamLine get logs of specified pod in specified namespace and copy to writer.
+// LogStreamLine gets logs of specified pod in specified namespace and copy to writer.
 func (c *Client) LogStreamLine(ctx context.Context, name, namespace string, opts *corev1.PodLogOptions, writer io.Writer) error {
 	req := c.Logs(name, namespace, opts)
 	r, err := req.Stream(ctx)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer func() {
+		_ = r.Close()
+	}()
 	bufReader := bufio.NewReaderSize(r, 256)
 	// bufReader := bufio.NewReader(r)
 	for {

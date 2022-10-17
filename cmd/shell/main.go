@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-co-op/gocron"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/rtsien/k8shell/pkg/k8s"
@@ -34,11 +33,6 @@ var (
 	once       sync.Once
 	rwm        sync.RWMutex
 )
-
-func internalError(ws *websocket.Conn, msg string, err error) {
-	log.Println(msg, err)
-	ws.WriteMessage(websocket.TextMessage, []byte("Internal server error."))
-}
 
 func serveTerminal(w http.ResponseWriter, r *http.Request) {
 	// auth
@@ -78,7 +72,8 @@ func serveWsTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		log.Println("close session.")
-		pty.Close()
+		pty.Done()
+		_ = pty.Close()
 	}()
 
 	client := getClient(cluster)
@@ -95,16 +90,14 @@ func serveWsTerminal(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		msg := fmt.Sprintf("Validate pod error! err: %v", err)
 		log.Println(msg)
-		pty.Write([]byte(msg))
-		pty.Done()
+		_, _ = pty.Write([]byte(msg))
 		return
 	}
 	err = client.Exec(cmd, pty, namespace, podName, containerName)
 	if err != nil {
 		msg := fmt.Sprintf("Exec to pod error! err: %v", err)
 		log.Println(msg)
-		pty.Write([]byte(msg))
-		pty.Done()
+		_, _ = pty.Write([]byte(msg))
 	}
 	return
 }
@@ -132,7 +125,7 @@ func serveWsLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		log.Println("close session.")
-		writer.Close()
+		_ = writer.Close()
 	}()
 
 	client := getClient(cluster)
@@ -149,8 +142,8 @@ func serveWsLogs(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		msg := fmt.Sprintf("Validate pod error! err: %v", err)
 		log.Println(msg)
-		writer.Write([]byte(msg))
-		writer.Close()
+		_, _ = writer.Write([]byte(msg))
+		_ = writer.Close()
 		return
 	}
 
@@ -164,8 +157,8 @@ func serveWsLogs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := fmt.Sprintf("log err: %v", err)
 		log.Println(msg)
-		writer.Write([]byte(msg))
-		writer.Close()
+		_, _ = writer.Write([]byte(msg))
+		_ = writer.Close()
 	}
 	return
 }
@@ -180,7 +173,7 @@ func updateKubeconfig() {
 	once.Do(func() {
 		kubeconfig = make(map[string]*k8s.Client)
 	})
-	filepath.WalkDir("./kubeconfig/", func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir("./kubeconfig/", func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
 			return nil
 		}
@@ -204,7 +197,7 @@ func updateKubeconfig() {
 
 func main() {
 	s := gocron.NewScheduler(time.Local).StartImmediately()
-	s.Every(1).Minute().Do(updateKubeconfig)
+	_, _ = s.Every(1).Minute().Do(updateKubeconfig)
 	s.StartAsync()
 
 	router := mux.NewRouter()
