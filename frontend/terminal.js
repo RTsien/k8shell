@@ -2,10 +2,10 @@ function getQueryVariable(variable) {
 	let query = window.location.search.substring(1);
 	let vars = query.split("&");
 	for (let i=0;i<vars.length;i++) {
-			let pair = vars[i].split("=");
-			if(pair[0] == variable){
-				return pair[1];
-			}
+		let pair = vars[i].split("=");
+		if(pair[0] == variable){
+			return pair[1];
+		}
 	}
 	return false;
 }
@@ -43,9 +43,10 @@ function connect(){
 		});
 		term.on('resize', function (size) {
 			console.log("resize: " + size)
-			msg = {operation: "resize", cols: size.cols, rows: rows}
+			msg = {operation: "resize", cols: size.cols, rows: size.rows}
 			conn.send(JSON.stringify(msg))
 		});
+		window.addEventListener("resize", e => {term.fit()})
 
 		conn = new WebSocket(url);
 		conn.onopen = function(e) {

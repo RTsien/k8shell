@@ -34,7 +34,7 @@ func NewClient(kubeconfig string) (*Client, error) {
 	}
 	config, err := k8sConfig.ClientConfig()
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "create kubeconfig[%s], err[%s].\n", kubeconfig, err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "create kubeconfig[%s], err[%v].\n", kubeconfig, err)
 		return nil, err
 	}
 	cli, err := kubernetes.NewForConfig(config)
@@ -145,10 +145,8 @@ func (c *Client) LogStreamLine(ctx context.Context, name, namespace string, opts
 		_ = r.Close()
 	}()
 	bufReader := bufio.NewReaderSize(r, 256)
-	// bufReader := bufio.NewReader(r)
 	for {
 		line, _, err := bufReader.ReadLine()
-		// line = []byte(fmt.Sprintf("%s", string(line)))
 		line = utils.ToValidUTF8(line, []byte(""))
 		if err != nil {
 			if err == io.EOF {
@@ -156,8 +154,6 @@ func (c *Client) LogStreamLine(ctx context.Context, name, namespace string, opts
 			}
 			return err
 		}
-		// line = append(line, []byte("\r\n")...)
-		// line = append(bytes.Trim(line, " "), []byte("\r\n")...)
 		_, err = writer.Write(line)
 		if err != nil {
 			return err
